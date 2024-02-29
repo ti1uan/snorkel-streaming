@@ -23,8 +23,11 @@ class LabelModelActor:
             lfs (List[labeling_function]): A list of Snorkel labeling functions to be applied.
             cardinality (int): The number of classes or categories in the labeling task.
         """
-        self.label_model = LabelModel(cardinality=cardinality)
+        self.label_model = None
+        self.cardinality = cardinality
         self.applier = PandasLFApplier(lfs=lfs)
+
+        self.is_trained = False
     
     def apply_lfs(self, data: Deque) -> np.ndarray:
         """
@@ -47,8 +50,12 @@ class LabelModelActor:
         Args:
             data (Deque): A deque of data points used for training the model.
         """
+        if self.label_model is None:
+            self.label_model = LabelModel(cardinality=self.cardinality)
         L = self.apply_lfs(data)
         self.label_model.fit(L, n_epochs=500, log_freq=100, seed=123)
+
+        self.is_trained = True
 
     def predict(self, data) -> np.ndarray:
         """
@@ -62,6 +69,9 @@ class LabelModelActor:
         Returns:
             np.ndarray: An array of predicted labels.
         """
+        if not self.is_trained:
+            raise RuntimeError("LabelModel has not been trained yet.")
+
         L = self.apply_lfs(data)
         predictions = self.label_model.predict(L)
         return predictions
