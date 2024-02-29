@@ -74,7 +74,7 @@ class SnorkelStreaming:
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda x: json.dumps(x).encode('utf-8')
         )
-        self.label_model_actor = LabelModelActor(lfs, cardinality)
+        self.label_model_actor = LabelModelActor.remote(lfs, cardinality)
         self.drift_detection = DriftDetection()
         self.batch_size = batch_size
         self.output_topic = output_topic
@@ -91,7 +91,11 @@ class SnorkelStreaming:
         """
         self.log.info("Starting snorkel streaming...")
         self.should_stop = False
-        Timer(60, self._drift_check).start(daemon=True)
+
+        t = Timer(60, self._drift_check)
+        t.daemon = True
+        t.start()
+        
         self._process_stream()
     
     def stop(self) -> None:
@@ -115,7 +119,9 @@ class SnorkelStreaming:
             if self.drift_detection.check_labeling_consistency(L=L):
                 self._trigger_alarm()
 
-        Timer(60, self._drift_check).start(daemon=True)
+        t = Timer(60, self._drift_check)
+        t.daemon = True
+        t.start()
 
 
     def _terminate(self) -> None:
