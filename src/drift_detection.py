@@ -14,7 +14,7 @@ class DriftDetection:
         lf_analysis = LFAnalysis(L=L).lf_summary()
         conflicts = lf_analysis['Conflicts'].mean()
         if conflicts > self.conflict_threshold:
-            self.log.warn("Inconsistency detected among labeling functions. Potential real drift.")
+            self.log.warning("Inconsistency detected among labeling functions. Potential real drift.")
             return True
         return False
 
