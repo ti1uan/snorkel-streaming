@@ -50,14 +50,11 @@ class MetaLabelModel:
         new_model = LabelModel(cardinality=self.cardinality)
         L_train = self.applier.apply(data)
         new_model.fit(L_train=L_train, n_epochs=self.n_epochs)
-        print("new snorkel model trained!")
 
         self.models.append(new_model)
         if len(self.models) >= 3:
             self.mode = 'meta'
-            print("now in meta mode, meta model training...")
             self._train_meta_model(data)
-            print("meta model trained!")
 
     def predict(self, data: Union[Sequence[Any], pd.DataFrame]) -> np.ndarray:
         """
