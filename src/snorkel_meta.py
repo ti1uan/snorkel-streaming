@@ -34,7 +34,6 @@ class MetaLabelModel:
         self.data_mode = data_mode
         self.n_epochs = n_epochs
         self.meta_model = None
-        self.meta_applier = None
         self.mode = 'vote'
 
     def update(self, data: Union[Sequence[Any], pd.DataFrame]) -> None:
@@ -51,11 +50,14 @@ class MetaLabelModel:
         new_model = LabelModel(cardinality=self.cardinality)
         L_train = self.applier.apply(data)
         new_model.fit(L_train=L_train, n_epochs=self.n_epochs)
+        print("new snorkel model trained!")
 
         self.models.append(new_model)
         if len(self.models) >= 3:
             self.mode = 'meta'
+            print("now in meta mode, meta model training...")
             self._train_meta_model(data)
+            print("meta model trained!")
 
     def predict(self, data: Union[Sequence[Any], pd.DataFrame]) -> np.ndarray:
         """
@@ -82,15 +84,24 @@ class MetaLabelModel:
             return final_predictions
         
         elif self.mode == 'meta':
-            assert len(self.models) > 3, "There must be at least three models when using meta"
-            assert self.meta_model and self.meta_applier, "Meta model not trained yet."
+            assert len(self.models) >= 3, f"There must be at least three models when using meta, current {len(self.models)} models"
+            assert self.meta_model, "Meta model not trained yet."
 
-            L = self.meta_applier.apply(data)
+            L = self._meta_apply(data)
             return self.meta_model.predict(L)
         
         else:
             raise ValueError('Invalid mode')
         
+    def _meta_apply(self, data: Union[Sequence[Any], pd.DataFrame]) -> ndarray:
+        orig_L = self.applier.apply(data)
+        preds = []
+        for model in self.models:
+            preds.append(model.predict(L=orig_L))
+        preds_array = np.array(preds)
+        L = preds_array.T
+        return L
+      
     def _train_meta_model(self, data: Union[Sequence[Any], pd.DataFrame]) -> None:
         """
         Train the meta-label model using the existing LabelModels.
@@ -98,16 +109,6 @@ class MetaLabelModel:
         Args:
             data (Union[Sequence[Any], pd.DataFrame]): The input data for training the meta-label model.
         """
-
-        def _make_labeling_function(model):
-            @labeling_function()
-            def lf(x):
-                return model.predict(x)
-            return lf
-        
-        lfs = [_make_labeling_function(model) for model in self.models]
-        self.meta_applier = LFApplier(lfs=lfs) if self.data_mode == 'seq' else PandasLFApplier(lfs=lfs)
         self.meta_model = LabelModel(cardinality=self.cardinality)
-
-        L_train = self.meta_applier.apply(data)
+        L_train = self._meta_apply(data)
         self.meta_model.fit(L_train=L_train, n_epochs=self.n_epochs)
