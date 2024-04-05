@@ -93,7 +93,7 @@ class MetaLabelModel:
         else:
             raise ValueError('Invalid mode')
         
-    def _meta_apply(self, data: Union[Sequence[Any], pd.DataFrame]) -> ndarray:
+    def _meta_apply(self, data: Union[Sequence[Any], pd.DataFrame]) -> np.ndarray:
         orig_L = self.applier.apply(data)
         preds = []
         for model in self.models:
