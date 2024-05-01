@@ -1,0 +1,3 @@
+# SnorkelStreaming
+
+We adapt Snorkel for streaming data. The implementation of drift adaptation strategies are under `src/snorkel_incremental.py` and `src/snorkel_meta.py`. The Flink operator of Snorkel is under `src/flink_op.py`. To reproduce the results we get, please see `notebooks` directory. The `notebooks/snorkel_streaming.ipynb` file has the test on credit card fraud task and the `notebooks/concept_drift_adaption_snorkel_streaming.ipynb` contains the tests for different drift adaptation strategies on the electricity dataset.
