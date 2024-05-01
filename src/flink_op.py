@@ -1,78 +1,47 @@
 from pyflink.datastream import StreamExecutionEnvironment, DataStream
-from pyflink.datastream.functions import MapFunction
-from pyflink.common.serialization import SimpleStringSchema
-from pyflink.datastream import StreamExecutionEnvironment, DataStream
-from pyflink.datastream.functions import MapFunction
-from snorkel.labeling import labeling_function
-import os
-import time
+from pyflink.datastream.functions import MapFunction, FilterFunction
+import pandas as pd
 
-#labeling function 1
-@labeling_function()
-def is_positive(x):
-    return 1 if x%2==0 else 0
-
-#labeling function 2
-@labeling_function()
-def is_negative(x):
-    return 1 if x%3==0  else 0
-
-lfs = [is_positive, is_negative]
-
-class SnorkelLabelingOperator(MapFunction):
-    def __init__(self, lfs, cardinality):
-        self.lfs = lfs
-        self.cardinality = cardinality
-        self.label_model = None 
-
+# Define a MapFunction to process card transaction records
+class ProcessCardTransaction(MapFunction):
     def map(self, value):
-        #For each element, label with the Snorkel labeling function
-        #Here, we assume that the label model has already been trained and can be used directly
-        #In practice, it may be necessary to dynamically train or update the model based on new data
-        predictions = [lf(value) for lf in self.lfs]
-        labels = {str(i): float(pred) for i, pred in enumerate(predictions)}
-        ss =  f"{value} (label: {max(labels, key=labels.get)})"
-        # print(ss)
-        # print(labels)
-        return ss
+        # The map function simply passes through the value
+        return value
 
-    def open(self, config):
+# Define a FilterFunction to filter out fraudulent transactions
+class FilterFraudTransactions(FilterFunction):
+    def filter(self, value):
+        # The filter function checks if the 'fraud' field is equal to 1.0
+        return value['fraud'] == 1.0
 
-        self.label_model = "some_label_model"
+# Get the execution environment from PyFlink
+env = StreamExecutionEnvironment.get_execution_environment()
 
-    def close(self, config):
-        # clean rescource
-        pass
+# Set the parallelism level for the job
+env.set_parallelism(1)  # Set to 1 for this example
 
+# Read the CSV file into a pandas DataFrame
+filename = '/content/drive/My Drive/card_transdata.csv'
+df = pd.read_csv(filename)
+df = df.head(100)  # Select only the first 100 rows for this example
 
+# Convert the DataFrame to a stream of data for processing
+data_stream = env.from_collection(df.to_dict('records'))
 
-def main():
-    # set flink cluster
-    os.environ['JOB_MANAGER_RPC_ADDRESS'] = 'flink-jobmanager'
-    
-    # get environment
-    env = StreamExecutionEnvironment.get_execution_environment()
+# Process the data using the map function defined earlier
+processed_stream = data_stream.map(ProcessCardTransaction())
 
-    # set palllism
-    env.set_parallelism(1)  # based on the number of TaskManager
+# Filter the transactions to get only the fraudulent ones
+fraud_stream = processed_stream.filter(FilterFraudTransactions())
 
-    # create strem
-    data_stream = env.from_collection(range(800000)).map(lambda x: x)
-    print(type(data_stream))
-    # apply snrokel operator
-    snorkel_operator = SnorkelLabelingOperator(lfs,2)
-    labeled_stream = data_stream.map(snorkel_operator)
+# Execute the Flink job and collect the results
+fraud_results = fraud_stream.execute_and_collect()
 
-   
-    start_time = time.time()
-    env.execute("Test Flink Job")  # start flink
+# Convert the filtered results back into a pandas DataFrame
+fraud_df = pd.DataFrame(fraud_results)
 
-    end_time = time.time()
+# Print the head of the DataFrame to see the first few rows
+print(fraud_df.head())
 
-    
-    processing_time = end_time - start_time
-    print(f"Processing time: {processing_time} seconds")
-
-if __name__ == '__main__':
-    main()
-
+# Note: In an actual Flink job, you would start the job with the following command:
+# env.execute("Card Transaction Processing with PyFlink")
